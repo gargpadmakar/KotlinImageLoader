@@ -105,6 +105,8 @@ fun AsyncImage(
             }
         }
 
+        var latestThumbnail by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+
         // Keyed on resolvedRequest, actualLoader, and network reconnection
         LaunchedEffect(resolvedRequest, actualLoader, isOnlineState.value) {
             // If already succeeded, do not reload on network toggle
@@ -118,7 +120,9 @@ fun AsyncImage(
                     is ImageResult.Progressive -> {
                         val bmp = result.image as? Bitmap
                         if (bmp != null) {
-                            AsyncImageState.Progressive(bmp.asImageBitmap(), result.progress)
+                            val imgBmp = bmp.asImageBitmap()
+                            latestThumbnail = imgBmp
+                            AsyncImageState.Progressive(imgBmp, result.progress)
                         } else {
                             imageState
                         }
@@ -126,7 +130,9 @@ fun AsyncImage(
                     is ImageResult.Success -> {
                         val bmp = result.image as? Bitmap
                         if (bmp != null) {
-                            AsyncImageState.Success(bmp.asImageBitmap(), result)
+                            val imgBmp = bmp.asImageBitmap()
+                            latestThumbnail = imgBmp
+                            AsyncImageState.Success(imgBmp, result)
                         } else {
                             AsyncImageState.Error(
                                 ImageResult.Error(
@@ -146,7 +152,17 @@ fun AsyncImage(
 
         when (val s = imageState) {
             is AsyncImageState.Loading -> {
-                if (placeholder != null) {
+                if (latestThumbnail != null) {
+                    Image(
+                        bitmap = latestThumbnail!!,
+                        contentDescription = contentDescription,
+                        modifier = Modifier.fillMaxSize(),
+                        alignment = alignment,
+                        contentScale = contentScale,
+                        alpha = alpha,
+                        colorFilter = colorFilter
+                    )
+                } else if (placeholder != null) {
                     Image(
                         painter = placeholder,
                         contentDescription = contentDescription,
@@ -181,7 +197,18 @@ fun AsyncImage(
                 )
             }
             is AsyncImageState.Error -> {
-                if (error != null) {
+                // If thumbnail is available, show it continuously! Do not show red error!
+                if (latestThumbnail != null) {
+                    Image(
+                        bitmap = latestThumbnail!!,
+                        contentDescription = contentDescription,
+                        modifier = Modifier.fillMaxSize(),
+                        alignment = alignment,
+                        contentScale = contentScale,
+                        alpha = alpha,
+                        colorFilter = colorFilter
+                    )
+                } else if (error != null) {
                     Image(
                         painter = error,
                         contentDescription = contentDescription,
