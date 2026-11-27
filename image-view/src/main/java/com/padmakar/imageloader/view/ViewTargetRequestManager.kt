@@ -193,23 +193,35 @@ internal object ViewTargetRequestManager {
                     if (imageView.getTag(TAG_REQUEST_ID) == requestId) {
                         when (result) {
                             is ImageResult.Progressive -> {
-                                val bitmap = result.image as? Bitmap
-                                if (bitmap != null) {
-                                    imageView.setImageBitmap(bitmap)
+                                val image = result.image
+                                val drawable: android.graphics.drawable.Drawable? = when (image) {
+                                    is Bitmap -> android.graphics.drawable.BitmapDrawable(imageView.resources, image)
+                                    is android.graphics.drawable.Drawable -> image
+                                    else -> null
+                                }
+                                if (drawable != null) {
+                                    imageView.setImageDrawable(drawable)
                                 }
                             }
                             is ImageResult.Success -> {
-                                val bitmap = result.image as? Bitmap
-                                if (bitmap != null) {
+                                val image = result.image
+                                val drawable: android.graphics.drawable.Drawable? = when (image) {
+                                    is Bitmap -> android.graphics.drawable.BitmapDrawable(imageView.resources, image)
+                                    is android.graphics.drawable.Drawable -> image
+                                    else -> null
+                                }
+                                if (drawable != null) {
                                     if (request.crossfade && imageView.drawable != null) {
                                         val previous = imageView.drawable
-                                        val next = android.graphics.drawable.BitmapDrawable(imageView.resources, bitmap)
-                                        val transition = android.graphics.drawable.TransitionDrawable(arrayOf(previous, next))
+                                        val transition = android.graphics.drawable.TransitionDrawable(arrayOf(previous, drawable))
                                         transition.isCrossFadeEnabled = true
                                         imageView.setImageDrawable(transition)
                                         transition.startTransition(request.crossfadeDurationMillis)
                                     } else {
-                                        imageView.setImageBitmap(bitmap)
+                                        imageView.setImageDrawable(drawable)
+                                    }
+                                    if (drawable is android.graphics.drawable.Animatable) {
+                                        drawable.start()
                                     }
                                 }
                             }

@@ -118,9 +118,8 @@ fun AsyncImage(
             actualLoader.flow(resolvedRequest).collect { result ->
                 imageState = when (result) {
                     is ImageResult.Progressive -> {
-                        val bmp = result.image as? Bitmap
-                        if (bmp != null) {
-                            val imgBmp = bmp.asImageBitmap()
+                        val imgBmp = extractImageBitmap(result.image)
+                        if (imgBmp != null) {
                             latestThumbnail = imgBmp
                             AsyncImageState.Progressive(imgBmp, result.progress)
                         } else {
@@ -128,15 +127,14 @@ fun AsyncImage(
                         }
                     }
                     is ImageResult.Success -> {
-                        val bmp = result.image as? Bitmap
-                        if (bmp != null) {
-                            val imgBmp = bmp.asImageBitmap()
+                        val imgBmp = extractImageBitmap(result.image)
+                        if (imgBmp != null) {
                             latestThumbnail = imgBmp
                             AsyncImageState.Success(imgBmp, result)
                         } else {
                             AsyncImageState.Error(
                                 ImageResult.Error(
-                                    throwable = IllegalStateException("Decoded image is not an Android Bitmap"),
+                                    throwable = IllegalStateException("Unable to convert decoded visual payload (${result.image::class.java.name}) into ImageBitmap"),
                                     request = resolvedRequest
                                 )
                             )
@@ -236,4 +234,27 @@ fun AsyncImage(
             renderContent(imageState)
         }
     }
+}
+
+private fun extractImageBitmap(image: Any): androidx.compose.ui.graphics.ImageBitmap? {
+    if (image is Bitmap) {
+        return image.asImageBitmap()
+    }
+    if (image is android.graphics.drawable.BitmapDrawable && image.bitmap != null) {
+        return image.bitmap.asImageBitmap()
+    }
+    if (image is android.graphics.drawable.Drawable) {
+        val w = if (image.intrinsicWidth > 0) image.intrinsicWidth else 300
+        val h = if (image.intrinsicHeight > 0) image.intrinsicHeight else 300
+        return try {
+            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+            image.setBounds(0, 0, canvas.width, canvas.height)
+            image.draw(canvas)
+            bitmap.asImageBitmap()
+        } catch (_: Throwable) {
+            null
+        }
+    }
+    return null
 }

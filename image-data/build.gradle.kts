@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":image-core"))
     implementation(project(":image-domain"))
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.androidx.core.ktx)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
@@ -58,6 +59,30 @@ afterEvaluate {
                 groupId = "com.github.gargpadmakar.KotlinImageLoader"
                 artifactId = "image-data"
                 version = "1.0.1"
+
+                pom {
+                    name.set("KotlinImageLoader Data")
+                    description.set("Data layer, network fetchers, and decoders for KotlinImageLoader.")
+                    url.set("https://github.com/gargpadmakar/KotlinImageLoader")
+                    licenses {
+                        license {
+                            name.set("The Apache License, Version 2.0")
+                            url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                        }
+                    }
+                    developers {
+                        developer {
+                            id.set("gargpadmakar")
+                            name.set("Padmakar Garg")
+                            email.set("gargpadmakar@users.noreply.github.com")
+                        }
+                    }
+                    scm {
+                        connection.set("scm:git:git://github.com/gargpadmakar/KotlinImageLoader.git")
+                        developerConnection.set("scm:git:ssh://github.com:gargpadmakar/KotlinImageLoader.git")
+                        url.set("https://github.com/gargpadmakar/KotlinImageLoader")
+                    }
+                }
             }
         }
     }
