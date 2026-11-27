@@ -29,6 +29,7 @@ internal object ViewTargetRequestManager {
     private val TAG_REQUEST_ID = R.id.tag_image_loader_request_id
     private val TAG_DISPOSABLE = R.id.tag_image_loader_disposable
     private val TAG_ATTACH_LISTENER = R.id.tag_image_loader_attach_listener
+    private val TAG_NETWORK_JOB = R.id.tag_image_loader_network_job
 
     fun loadImage(
         imageView: ImageView,
@@ -54,6 +55,8 @@ internal object ViewTargetRequestManager {
         // Active request handle
         var requestJob: Job? = null
         var preDrawListener: ViewTreeObserver.OnPreDrawListener? = null
+        val oldNetworkJob = imageView.getTag(TAG_NETWORK_JOB) as? Job
+        oldNetworkJob?.cancel()
 
         fun cleanUp() {
             preDrawListener?.let {
@@ -62,6 +65,9 @@ internal object ViewTargetRequestManager {
             }
             requestJob?.cancel()
             requestJob = null
+            val netJob = imageView.getTag(TAG_NETWORK_JOB) as? Job
+            netJob?.cancel()
+            imageView.setTag(TAG_NETWORK_JOB, null)
         }
 
         val disposable = object : Disposable {
@@ -203,6 +209,16 @@ internal object ViewTargetRequestManager {
                                 if (errorResId != null) {
                                     imageView.setImageResource(errorResId)
                                 }
+
+                                // If request failed, listen for network reconnection to auto-retry!
+                                val retryJob = CoroutineScope(Dispatchers.Main.immediate).launch {
+                                    com.padmakar.imageloader.core.network.NetworkMonitor.observeOnline(imageView.context).collect { online ->
+                                        if (online && imageView.getTag(TAG_REQUEST_ID) == requestId) {
+                                            executeRequest(imageView, request, requestId, loader, onJobCreated)
+                                        }
+                                    }
+                                }
+                                imageView.setTag(TAG_NETWORK_JOB, retryJob)
                             }
                         }
                     }

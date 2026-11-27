@@ -17,6 +17,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import kotlinx.coroutines.flow.flowOn
+
 /**
  * Production implementation of the [ImageLoader] contract.
  *
@@ -48,7 +50,7 @@ class RealImageLoader(
     }
 
     override fun flow(request: ImageRequest): kotlinx.coroutines.flow.Flow<ImageResult> =
-        useCase.flow(request)
+        useCase.flow(request).flowOn(ioDispatcher)
 
     override fun enqueue(request: ImageRequest): Disposable {
         val job = scope.launch(ioDispatcher) {

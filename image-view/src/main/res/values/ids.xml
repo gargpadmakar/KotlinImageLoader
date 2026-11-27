@@ -3,4 +3,5 @@
     <item name="tag_image_loader_request_id" type="id" />
     <item name="tag_image_loader_disposable" type="id" />
     <item name="tag_image_loader_attach_listener" type="id" />
+    <item name="tag_image_loader_network_job" type="id" />
 </resources>

@@ -98,9 +98,18 @@ fun AsyncImage(
 
         var imageState by remember { mutableStateOf<AsyncImageState>(AsyncImageState.Loading) }
 
-        // Keyed on resolvedRequest and actualLoader
-        LaunchedEffect(resolvedRequest, actualLoader) {
-            // Reset state immediately so previous image never leaks into new request
+        // Monitor network and re-trigger automatically when network comes back online!
+        val isOnlineState = androidx.compose.runtime.produceState(initialValue = true) {
+            com.padmakar.imageloader.core.network.NetworkMonitor.observeOnline(context).collect { online ->
+                value = online
+            }
+        }
+
+        // Keyed on resolvedRequest, actualLoader, and network reconnection
+        LaunchedEffect(resolvedRequest, actualLoader, isOnlineState.value) {
+            // If already succeeded, do not reload on network toggle
+            if (imageState is AsyncImageState.Success) return@LaunchedEffect
+
             imageState = AsyncImageState.Loading
             onStateChanged?.invoke(imageState)
 
