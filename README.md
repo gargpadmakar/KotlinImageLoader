@@ -105,13 +105,13 @@ Add the required module dependencies to your application's `build.gradle.kts`:
 ```kotlin
 dependencies {
     // For Jetpack Compose support
-    implementation("com.github.gargpadmakar.KotlinImageLoader:image-compose:1.0.0")
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-compose:1.0.1")
 
     // For traditional Android View support
-    implementation("com.github.gargpadmakar.KotlinImageLoader:image-view:1.0.0")
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-view:1.0.1")
 
     // Core library engine
-    implementation("com.github.gargpadmakar.KotlinImageLoader:image-loader:1.0.0")
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-loader:1.0.1")
 }
 ```
 
@@ -219,6 +219,22 @@ AsyncImage(
 
 // Pass to ImageView
 imageView.loadImage("https://example.com/photo.jpg", imageLoader = customImageLoader)
+```
+
+---
+
+## In-Memory Caching (Glide-Style)
+
+KotlinImageLoader integrates a dynamic in-memory LRU cache (`LruMemoryCache`):
+* **Cross-Screen / Intent Persistence**: Once an image is loaded, navigating across screens or starting new Intent activities will immediately serve the image from memory cache (`DataSource.MEMORY`) with zero network latency.
+* **Heap-Aware Sizing**: Dynamically sizes itself to 25% of the application's available JVM heap, safely evicting least-recently-used bitmaps when memory pressure increases.
+* **Configurable Cache Policies**: Controlled via `CachePolicy` (`ENABLED`, `READ_ONLY`, `WRITE_ONLY`, `DISABLED`).
+
+```kotlin
+// Example bypassing memory cache
+val request = ImageRequest.Builder("https://example.com/live_feed.jpg")
+    .memoryCachePolicy(CachePolicy.DISABLED)
+    .build()
 ```
 
 ---

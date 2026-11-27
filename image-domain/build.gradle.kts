@@ -50,7 +50,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.github.gargpadmakar.KotlinImageLoader"
                 artifactId = "image-domain"
-                version = "1.0.0"
+                version = "1.0.1"
             }
         }
     }
