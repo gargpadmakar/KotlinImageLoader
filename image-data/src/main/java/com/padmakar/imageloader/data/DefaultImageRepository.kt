@@ -15,31 +15,22 @@ import com.padmakar.imageloader.domain.repository.ImageRepository
  * into these boundaries in Phase 2.
  */
 class DefaultImageRepository(
-    private val fetcherBoundary: ImageFetcherBoundary? = null,
-    private val decoderBoundary: ImageDecoderBoundary? = null
+    private val fetcherBoundary: ImageFetcherBoundary = com.padmakar.imageloader.data.fetcher.HttpUrlConnectionFetcher(),
+    private val decoderBoundary: ImageDecoderBoundary = com.padmakar.imageloader.data.decoder.BitmapDecoder()
 ) : ImageRepository {
 
     override suspend fun loadImage(request: ImageRequest): ImageResult {
-        val fetcher = fetcherBoundary
-        val decoder = decoderBoundary
-        if (fetcher == null || decoder == null) {
-            return ImageResult.Error(
-                throwable = UnsupportedOperationException(
-                    "Image engine boundaries are not configured in Phase 1 foundation."
-                ),
-                request = request
-            )
-        }
-
-        return when (val fetchResult = fetcher.fetch(request)) {
+        return when (val fetchResult = fetcherBoundary.fetch(request)) {
             is FetchResult.Success -> {
                 try {
-                    val decoded = decoder.decode(fetchResult.data, request)
+                    val decoded = decoderBoundary.decode(fetchResult.data, request)
                     ImageResult.Success(
                         image = decoded,
                         dataSource = fetchResult.dataSource,
                         request = request
                     )
+                } catch (ce: kotlinx.coroutines.CancellationException) {
+                    throw ce
                 } catch (t: Throwable) {
                     ImageResult.Error(throwable = t, request = request)
                 }

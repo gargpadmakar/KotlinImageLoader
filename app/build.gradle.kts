@@ -39,6 +39,8 @@ android {
 dependencies {
     implementation(project(":image-compose"))
     implementation(project(":image-view"))
+    implementation(project(":image-loader"))
+    implementation(libs.androidx.recyclerview)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

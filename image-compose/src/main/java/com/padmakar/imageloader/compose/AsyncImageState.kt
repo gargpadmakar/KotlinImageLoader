@@ -1,16 +1,25 @@
 package com.padmakar.imageloader.compose
 
 import androidx.compose.runtime.Immutable
-import com.padmakar.imageloader.mvi.ImageState
+import androidx.compose.ui.graphics.ImageBitmap
+import com.padmakar.imageloader.core.model.ImageResult
 
 /**
- * State holder for Compose AsyncImage rendering.
+ * State representing asynchronous image loading in Jetpack Compose.
  */
 @Immutable
-data class AsyncImageState(
-    val imageState: ImageState = ImageState.Idle
-) {
-    val isLoading: Boolean get() = imageState is ImageState.Loading
-    val isSuccess: Boolean get() = imageState is ImageState.Success
-    val isError: Boolean get() = imageState is ImageState.Error
+sealed interface AsyncImageState {
+    /** Request is currently in flight or waiting for dimensions. */
+    data object Loading : AsyncImageState
+
+    /** Image loaded and decoded successfully. */
+    data class Success(
+        val bitmap: ImageBitmap,
+        val result: ImageResult.Success
+    ) : AsyncImageState
+
+    /** Image loading failed. */
+    data class Error(
+        val result: ImageResult.Error
+    ) : AsyncImageState
 }

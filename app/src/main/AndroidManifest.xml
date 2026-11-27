@@ -23,6 +23,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ui.view.ViewDemoActivity"
+            android:exported="false"
+            android:label="View Demo"
+            android:theme="@style/Theme.KotlinImageLoader" />
     </application>
 
 </manifest>

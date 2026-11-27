@@ -13,7 +13,7 @@ package com.padmakar.imageloader.core.model
  */
 data class ImageRequest(
     val data: Any?,
-    val size: ImageSize = ImageSize.Original,
+    val size: ImageSize = ImageSize.Unspecified,
     val memoryCachePolicy: CachePolicy = CachePolicy.ENABLED,
     val diskCachePolicy: CachePolicy = CachePolicy.ENABLED,
     val placeholderResId: Int? = null,
@@ -24,7 +24,7 @@ data class ImageRequest(
      * Builder for constructing [ImageRequest] instances fluently.
      */
     class Builder(private var data: Any? = null) {
-        private var size: ImageSize = ImageSize.Original
+        private var size: ImageSize = ImageSize.Unspecified
         private var memoryCachePolicy: CachePolicy = CachePolicy.ENABLED
         private var diskCachePolicy: CachePolicy = CachePolicy.ENABLED
         private var placeholderResId: Int? = null
