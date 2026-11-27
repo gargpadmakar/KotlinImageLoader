@@ -181,24 +181,28 @@ internal object ViewTargetRequestManager {
     ) {
         val job = CoroutineScope(Dispatchers.Main.immediate).launch {
             try {
-                val result = withContext(Dispatchers.IO) {
-                    loader.execute(request)
-                }
-
-                // Verify request identity before updating view:
-                // If view was reused or request cancelled, discard result!
-                if (imageView.getTag(TAG_REQUEST_ID) == requestId) {
-                    when (result) {
-                        is ImageResult.Success -> {
-                            val bitmap = result.image as? Bitmap
-                            if (bitmap != null) {
-                                imageView.setImageBitmap(bitmap)
+                loader.flow(request).collect { result ->
+                    // Verify request identity before updating view:
+                    // If view was reused or request cancelled, discard result!
+                    if (imageView.getTag(TAG_REQUEST_ID) == requestId) {
+                        when (result) {
+                            is ImageResult.Progressive -> {
+                                val bitmap = result.image as? Bitmap
+                                if (bitmap != null) {
+                                    imageView.setImageBitmap(bitmap)
+                                }
                             }
-                        }
-                        is ImageResult.Error -> {
-                            val errorResId = request.errorResId
-                            if (errorResId != null) {
-                                imageView.setImageResource(errorResId)
+                            is ImageResult.Success -> {
+                                val bitmap = result.image as? Bitmap
+                                if (bitmap != null) {
+                                    imageView.setImageBitmap(bitmap)
+                                }
+                            }
+                            is ImageResult.Error -> {
+                                val errorResId = request.errorResId
+                                if (errorResId != null) {
+                                    imageView.setImageResource(errorResId)
+                                }
                             }
                         }
                     }

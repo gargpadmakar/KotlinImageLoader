@@ -18,7 +18,8 @@ data class ImageRequest(
     val diskCachePolicy: CachePolicy = CachePolicy.ENABLED,
     val placeholderResId: Int? = null,
     val errorResId: Int? = null,
-    val headers: Map<String, String> = emptyMap()
+    val headers: Map<String, String> = emptyMap(),
+    val progressive: Boolean = true
 ) {
     /**
      * Builder for constructing [ImageRequest] instances fluently.
@@ -30,6 +31,7 @@ data class ImageRequest(
         private var placeholderResId: Int? = null
         private var errorResId: Int? = null
         private var headers: MutableMap<String, String> = mutableMapOf()
+        private var progressive: Boolean = true
 
         fun data(data: Any?) = apply { this.data = data }
         fun size(size: ImageSize) = apply { this.size = size }
@@ -43,6 +45,7 @@ data class ImageRequest(
             this.headers.clear()
             this.headers.putAll(headers)
         }
+        fun progressive(enabled: Boolean) = apply { this.progressive = enabled }
 
         fun build(): ImageRequest = ImageRequest(
             data = data,
@@ -51,7 +54,8 @@ data class ImageRequest(
             diskCachePolicy = diskCachePolicy,
             placeholderResId = placeholderResId,
             errorResId = errorResId,
-            headers = headers.toMap()
+            headers = headers.toMap(),
+            progressive = progressive
         )
     }
 }

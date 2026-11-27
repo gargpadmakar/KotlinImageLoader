@@ -14,4 +14,12 @@ interface ImageRepository {
      * @return [ImageResult] containing either decoded image or failure details.
      */
     suspend fun loadImage(request: ImageRequest): ImageResult
+
+    /**
+     * Streams progressive intermediate previews during download and final result.
+     */
+    fun streamImage(request: ImageRequest): kotlinx.coroutines.flow.Flow<ImageResult> =
+        kotlinx.coroutines.flow.flow {
+            emit(loadImage(request))
+        }
 }

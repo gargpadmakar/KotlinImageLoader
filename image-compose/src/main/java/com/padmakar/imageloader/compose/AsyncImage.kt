@@ -104,26 +104,35 @@ fun AsyncImage(
             imageState = AsyncImageState.Loading
             onStateChanged?.invoke(imageState)
 
-            val result = actualLoader.execute(resolvedRequest)
-            imageState = when (result) {
-                is ImageResult.Success -> {
-                    val bmp = result.image as? Bitmap
-                    if (bmp != null) {
-                        AsyncImageState.Success(bmp.asImageBitmap(), result)
-                    } else {
-                        AsyncImageState.Error(
-                            ImageResult.Error(
-                                throwable = IllegalStateException("Decoded image is not an Android Bitmap"),
-                                request = resolvedRequest
+            actualLoader.flow(resolvedRequest).collect { result ->
+                imageState = when (result) {
+                    is ImageResult.Progressive -> {
+                        val bmp = result.image as? Bitmap
+                        if (bmp != null) {
+                            AsyncImageState.Progressive(bmp.asImageBitmap(), result.progress)
+                        } else {
+                            imageState
+                        }
+                    }
+                    is ImageResult.Success -> {
+                        val bmp = result.image as? Bitmap
+                        if (bmp != null) {
+                            AsyncImageState.Success(bmp.asImageBitmap(), result)
+                        } else {
+                            AsyncImageState.Error(
+                                ImageResult.Error(
+                                    throwable = IllegalStateException("Decoded image is not an Android Bitmap"),
+                                    request = resolvedRequest
+                                )
                             )
-                        )
+                        }
+                    }
+                    is ImageResult.Error -> {
+                        AsyncImageState.Error(result)
                     }
                 }
-                is ImageResult.Error -> {
-                    AsyncImageState.Error(result)
-                }
+                onStateChanged?.invoke(imageState)
             }
-            onStateChanged?.invoke(imageState)
         }
 
         when (val s = imageState) {
@@ -139,6 +148,17 @@ fun AsyncImage(
                         colorFilter = colorFilter
                     )
                 }
+            }
+            is AsyncImageState.Progressive -> {
+                Image(
+                    bitmap = s.bitmap,
+                    contentDescription = contentDescription,
+                    modifier = Modifier.fillMaxSize(),
+                    alignment = alignment,
+                    contentScale = contentScale,
+                    alpha = alpha,
+                    colorFilter = colorFilter
+                )
             }
             is AsyncImageState.Success -> {
                 Image(

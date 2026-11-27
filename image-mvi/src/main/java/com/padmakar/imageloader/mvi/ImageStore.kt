@@ -68,6 +68,9 @@ class DefaultImageStore(
                         _state.value = reducer.reduce(_state.value, ImageAction.LoadingSuccess(result))
                         _effect.send(ImageEffect.SuccessEffect(result.dataSource))
                     }
+                    is ImageResult.Progressive -> {
+                        // Progressive intermediate preview frame
+                    }
                     is ImageResult.Error -> {
                         _state.value = reducer.reduce(_state.value, ImageAction.LoadingFailure(result))
                         _effect.send(

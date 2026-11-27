@@ -63,7 +63,85 @@ class DefaultImageRepository(
                 }
             }
             is FetchResult.Error -> {
+                // Check if we have a thumbnail in memory cache to fallback to!
+                val thumbKey = request.data?.let { "${it}_thumb" }
+                if (thumbKey != null && memoryCache != null) {
+                    val thumb = memoryCache.get(thumbKey)
+                    if (thumb != null) {
+                        return ImageResult.Success(
+                            image = thumb,
+                            dataSource = DataSource.MEMORY,
+                            request = request
+                        )
+                    }
+                }
                 ImageResult.Error(throwable = fetchResult.throwable, request = request)
+            }
+        }
+    }
+
+    override fun streamImage(request: ImageRequest): kotlinx.coroutines.flow.Flow<ImageResult> = kotlinx.coroutines.flow.flow {
+        val cacheKey = request.data?.let { "${it}_${request.size}" }
+        val thumbKey = request.data?.let { "${it}_thumb" }
+
+        // 1. Check in-memory cache
+        if (cacheKey != null && request.memoryCachePolicy.isReadAllowed && memoryCache != null) {
+            val cached = memoryCache.get(cacheKey)
+            if (cached != null) {
+                emit(ImageResult.Success(image = cached, dataSource = DataSource.MEMORY, request = request))
+                return@flow
+            }
+        }
+
+        // 2. If thumbnail is cached, emit it immediately while fetching
+        if (thumbKey != null && request.memoryCachePolicy.isReadAllowed && memoryCache != null) {
+            val cachedThumb = memoryCache.get(thumbKey)
+            if (cachedThumb != null) {
+                emit(ImageResult.Progressive(image = cachedThumb, progress = 0.1f, request = request))
+            }
+        }
+
+        // 3. Streaming fetch
+        var lastEmittedProgressive: Any? = null
+        val fetchResult = fetcherBoundary.fetchStreaming(request) { partialBytes, progress ->
+            if (request.progressive) {
+                val partialBitmap = decoderBoundary.decodePartial(partialBytes, request)
+                if (partialBitmap != null) {
+                    lastEmittedProgressive = partialBitmap
+                    if (thumbKey != null && memoryCache != null) {
+                        memoryCache.put(thumbKey, partialBitmap)
+                    }
+                    emit(ImageResult.Progressive(image = partialBitmap, progress = progress, request = request))
+                }
+            }
+        }
+
+        when (fetchResult) {
+            is FetchResult.Success -> {
+                try {
+                    val decoded = decoderBoundary.decode(fetchResult.data, request)
+                    if (cacheKey != null && request.memoryCachePolicy.isWriteAllowed && memoryCache != null) {
+                        memoryCache.put(cacheKey, decoded)
+                    }
+                    emit(ImageResult.Success(image = decoded, dataSource = fetchResult.dataSource, request = request))
+                } catch (ce: kotlinx.coroutines.CancellationException) {
+                    throw ce
+                } catch (t: Throwable) {
+                    if (lastEmittedProgressive != null) {
+                        emit(ImageResult.Success(image = lastEmittedProgressive!!, dataSource = DataSource.MEMORY, request = request))
+                    } else {
+                        emit(ImageResult.Error(throwable = t, request = request))
+                    }
+                }
+            }
+            is FetchResult.Error -> {
+                // If network failed but we have a progressive frame or cached thumbnail, fallback gracefully!
+                val fallback = lastEmittedProgressive ?: (thumbKey?.let { memoryCache?.get(it) })
+                if (fallback != null) {
+                    emit(ImageResult.Success(image = fallback, dataSource = DataSource.MEMORY, request = request))
+                } else {
+                    emit(ImageResult.Error(throwable = fetchResult.throwable, request = request))
+                }
             }
         }
     }

@@ -143,6 +143,7 @@ private fun ComposeFeaturesContent() {
                                 onStateChanged = { state ->
                                     loadStatus = when (state) {
                                         is AsyncImageState.Loading -> "Loading..."
+                                        is AsyncImageState.Progressive -> "Progressive Preview (${(state.progress * 100).toInt()}%)"
                                         is AsyncImageState.Success -> "Success (${state.result.dataSource})"
                                         is AsyncImageState.Error -> "Failed (Error state)"
                                     }

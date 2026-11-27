@@ -156,7 +156,9 @@ class HttpUrlConnectionFetcher(
                 // Stream content into safe re-readable ByteArray with active cancellation and bounds checking
                 val bytes = readStreamFully(
                     stream = connection.inputStream,
-                    maxBytes = maxDownloadBytes
+                    maxBytes = maxDownloadBytes,
+                    contentLength = contentLength,
+                    onProgress = null
                 )
 
                 return FetchResult.Success(
@@ -178,10 +180,97 @@ class HttpUrlConnectionFetcher(
         }
     }
 
-    private suspend fun readStreamFully(stream: InputStream, maxBytes: Long): ByteArray {
+    override suspend fun fetchStreaming(
+        request: ImageRequest,
+        onProgress: suspend (bytes: ByteArray, progress: Float) -> Unit
+    ): FetchResult {
+        val rawData = request.data ?: return FetchResult.Error(IllegalArgumentException("Request data cannot be null"))
+        val urlString = rawData.toString().trim()
+        if (urlString.isBlank()) return FetchResult.Error(IllegalArgumentException("Request URL string cannot be blank"))
+
+        var currentUrl: URL
+        try {
+            currentUrl = URL(urlString)
+        } catch (e: Exception) {
+            return FetchResult.Error(IllegalArgumentException("Invalid URL format: $urlString", e))
+        }
+
+        var redirectCount = 0
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            var connection: HttpURLConnection? = null
+            var completionHandle: kotlinx.coroutines.DisposableHandle? = null
+
+            try {
+                connection = urlOpener(currentUrl).apply {
+                    instanceFollowRedirects = false
+                    connectTimeout = connectTimeoutMs
+                    readTimeout = readTimeoutMs
+                    requestMethod = "GET"
+                    doInput = true
+                    request.headers.forEach { (k, v) -> setRequestProperty(k, v) }
+                }
+
+                val job = currentCoroutineContext()[Job]
+                completionHandle = job?.invokeOnCompletion {
+                    try { connection.disconnect() } catch (_: Throwable) {}
+                }
+
+                connection.connect()
+                val responseCode = connection.responseCode
+
+                if (responseCode in REDIRECT_CODES) {
+                    val location = connection.getHeaderField("Location")
+                        ?: throw IOException("HTTP $responseCode redirect without Location")
+                    val nextUrl = URL(currentUrl, location)
+                    if (currentUrl.protocol.equals("https", ignoreCase = true) && nextUrl.protocol.equals("http", ignoreCase = true)) {
+                        throw SecurityException("Insecure redirect from HTTPS to HTTP forbidden")
+                    }
+                    redirectCount++
+                    if (redirectCount > MAX_REDIRECTS) throw IOException("Too many redirects")
+                    currentUrl = nextUrl
+                    continue
+                }
+
+                if (responseCode !in 200..299) {
+                    val msg = connection.responseMessage ?: "Error $responseCode"
+                    return FetchResult.Error(HttpException(responseCode, msg))
+                }
+
+                val contentLength = connection.contentLengthLong
+                if (contentLength > maxDownloadBytes) {
+                    return FetchResult.Error(IllegalStateException("Content-Length exceeds maximum limit"))
+                }
+
+                val bytes = readStreamFully(
+                    stream = connection.inputStream,
+                    maxBytes = maxDownloadBytes,
+                    contentLength = contentLength,
+                    onProgress = onProgress
+                )
+
+                return FetchResult.Success(bytes, DataSource.NETWORK)
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (t: Throwable) {
+                return FetchResult.Error(t)
+            } finally {
+                completionHandle?.dispose()
+                try { connection?.disconnect() } catch (_: Throwable) {}
+            }
+        }
+    }
+
+    private suspend fun readStreamFully(
+        stream: InputStream,
+        maxBytes: Long,
+        contentLength: Long = -1L,
+        onProgress: (suspend (ByteArray, Float) -> Unit)? = null
+    ): ByteArray {
         val output = ByteArrayOutputStream()
         val buffer = ByteArray(BUFFER_SIZE)
         var totalBytesRead = 0L
+        var lastEmitBytes = 0L
 
         stream.use { input ->
             while (true) {
@@ -195,6 +284,13 @@ class HttpUrlConnectionFetcher(
                     )
                 }
                 output.write(buffer, 0, read)
+
+                // Progressive notification if enabled and at least 32KB read since last emit
+                if (onProgress != null && (totalBytesRead - lastEmitBytes >= 32 * 1024L || totalBytesRead >= 16 * 1024L && lastEmitBytes == 0L)) {
+                    lastEmitBytes = totalBytesRead
+                    val progress = if (contentLength > 0) (totalBytesRead.toFloat() / contentLength).coerceIn(0f, 1f) else -1f
+                    onProgress(output.toByteArray(), progress)
+                }
             }
         }
         return output.toByteArray()

@@ -119,4 +119,29 @@ class BitmapDecoder(
 
         return bitmap
     }
+
+    override suspend fun decodePartial(source: ByteArray, request: ImageRequest): Any? {
+        if (source.size < 4096) return null
+        return try {
+            val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(source, 0, source.size, boundsOptions)
+            val w = boundsOptions.outWidth
+            val h = boundsOptions.outHeight
+            if (w <= 0 || h <= 0) return null
+
+            val sample = when (val size = request.size) {
+                is ImageSize.Exact -> calculateInSampleSize(w, h, size.width, size.height, maxDimension) * 2
+                else -> 4
+            }.coerceAtLeast(2)
+
+            val decodeOptions = BitmapFactory.Options().apply {
+                inJustDecodeBounds = false
+                inSampleSize = sample
+                inPreferredConfig = Bitmap.Config.RGB_565
+            }
+            BitmapFactory.decodeByteArray(source, 0, source.size, decodeOptions)
+        } catch (_: Throwable) {
+            null
+        }
+    }
 }

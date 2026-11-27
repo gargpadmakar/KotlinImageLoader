@@ -12,6 +12,12 @@ sealed interface AsyncImageState {
     /** Request is currently in flight or waiting for dimensions. */
     data object Loading : AsyncImageState
 
+    /** Progressive intermediate low-resolution preview / partial frame. */
+    data class Progressive(
+        val bitmap: ImageBitmap,
+        val progress: Float
+    ) : AsyncImageState
+
     /** Image loaded and decoded successfully. */
     data class Success(
         val bitmap: ImageBitmap,

@@ -8,4 +8,10 @@ import com.padmakar.imageloader.core.model.ImageRequest
  */
 interface ImageDecoderBoundary {
     suspend fun decode(source: Any, request: ImageRequest): Any
+
+    /**
+     * Attempts to decode partial/incremental bytes into a downsampled preview bitmap.
+     * Returns null if bytes are insufficient or cannot be decoded yet.
+     */
+    suspend fun decodePartial(source: ByteArray, request: ImageRequest): Any? = null
 }

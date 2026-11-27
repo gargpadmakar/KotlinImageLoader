@@ -47,6 +47,9 @@ class RealImageLoader(
         }
     }
 
+    override fun flow(request: ImageRequest): kotlinx.coroutines.flow.Flow<ImageResult> =
+        useCase.flow(request)
+
     override fun enqueue(request: ImageRequest): Disposable {
         val job = scope.launch(ioDispatcher) {
             try {

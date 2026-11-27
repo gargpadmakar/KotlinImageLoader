@@ -21,6 +21,19 @@ sealed interface ImageResult {
     ) : ImageResult
 
     /**
+     * Indicates progressive intermediate frame (partial download / low-resolution preview).
+     *
+     * @param image The intermediate decoded image bitmap.
+     * @param progress Progress percentage in range [0.0, 1.0], or -1.0 if unknown.
+     * @param request Original request.
+     */
+    data class Progressive(
+        val image: Any,
+        val progress: Float,
+        override val request: ImageRequest
+    ) : ImageResult
+
+    /**
      * Indicates failure during image fetching or decoding.
      *
      * @param throwable Root cause of the failure.
