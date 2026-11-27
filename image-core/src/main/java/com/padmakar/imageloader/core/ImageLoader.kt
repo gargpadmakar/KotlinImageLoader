@@ -34,4 +34,11 @@ interface ImageLoader {
         kotlinx.coroutines.flow.flow {
             emit(execute(request))
         }
+
+    /**
+     * Asynchronously warms the memory and disk caches for [request] without displaying it on a UI target.
+     *
+     * @return True if the image was successfully fetched/decoded into cache, false otherwise.
+     */
+    suspend fun prefetch(request: ImageRequest): Boolean = execute(request) is ImageResult.Success
 }

@@ -201,7 +201,16 @@ internal object ViewTargetRequestManager {
                             is ImageResult.Success -> {
                                 val bitmap = result.image as? Bitmap
                                 if (bitmap != null) {
-                                    imageView.setImageBitmap(bitmap)
+                                    if (request.crossfade && imageView.drawable != null) {
+                                        val previous = imageView.drawable
+                                        val next = android.graphics.drawable.BitmapDrawable(imageView.resources, bitmap)
+                                        val transition = android.graphics.drawable.TransitionDrawable(arrayOf(previous, next))
+                                        transition.isCrossFadeEnabled = true
+                                        imageView.setImageDrawable(transition)
+                                        transition.startTransition(request.crossfadeDurationMillis)
+                                    } else {
+                                        imageView.setImageBitmap(bitmap)
+                                    }
                                 }
                             }
                             is ImageResult.Error -> {

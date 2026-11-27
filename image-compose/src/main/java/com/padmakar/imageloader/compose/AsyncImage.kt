@@ -150,21 +150,34 @@ fun AsyncImage(
             }
         }
 
-        when (val s = imageState) {
-            is AsyncImageState.Loading -> {
-                if (latestThumbnail != null) {
+        val renderContent: @Composable (AsyncImageState) -> Unit = { state ->
+            when (state) {
+                is AsyncImageState.Loading -> {
+                    if (latestThumbnail != null) {
+                        Image(
+                            bitmap = latestThumbnail!!,
+                            contentDescription = contentDescription,
+                            modifier = Modifier.fillMaxSize(),
+                            alignment = alignment,
+                            contentScale = contentScale,
+                            alpha = alpha,
+                            colorFilter = colorFilter
+                        )
+                    } else if (placeholder != null) {
+                        Image(
+                            painter = placeholder,
+                            contentDescription = contentDescription,
+                            modifier = Modifier.fillMaxSize(),
+                            alignment = alignment,
+                            contentScale = contentScale,
+                            alpha = alpha,
+                            colorFilter = colorFilter
+                        )
+                    }
+                }
+                is AsyncImageState.Progressive -> {
                     Image(
-                        bitmap = latestThumbnail!!,
-                        contentDescription = contentDescription,
-                        modifier = Modifier.fillMaxSize(),
-                        alignment = alignment,
-                        contentScale = contentScale,
-                        alpha = alpha,
-                        colorFilter = colorFilter
-                    )
-                } else if (placeholder != null) {
-                    Image(
-                        painter = placeholder,
+                        bitmap = state.bitmap,
                         contentDescription = contentDescription,
                         modifier = Modifier.fillMaxSize(),
                         alignment = alignment,
@@ -173,44 +186,9 @@ fun AsyncImage(
                         colorFilter = colorFilter
                     )
                 }
-            }
-            is AsyncImageState.Progressive -> {
-                Image(
-                    bitmap = s.bitmap,
-                    contentDescription = contentDescription,
-                    modifier = Modifier.fillMaxSize(),
-                    alignment = alignment,
-                    contentScale = contentScale,
-                    alpha = alpha,
-                    colorFilter = colorFilter
-                )
-            }
-            is AsyncImageState.Success -> {
-                Image(
-                    bitmap = s.bitmap,
-                    contentDescription = contentDescription,
-                    modifier = Modifier.fillMaxSize(),
-                    alignment = alignment,
-                    contentScale = contentScale,
-                    alpha = alpha,
-                    colorFilter = colorFilter
-                )
-            }
-            is AsyncImageState.Error -> {
-                // If thumbnail is available, show it continuously! Do not show red error!
-                if (latestThumbnail != null) {
+                is AsyncImageState.Success -> {
                     Image(
-                        bitmap = latestThumbnail!!,
-                        contentDescription = contentDescription,
-                        modifier = Modifier.fillMaxSize(),
-                        alignment = alignment,
-                        contentScale = contentScale,
-                        alpha = alpha,
-                        colorFilter = colorFilter
-                    )
-                } else if (error != null) {
-                    Image(
-                        painter = error,
+                        bitmap = state.bitmap,
                         contentDescription = contentDescription,
                         modifier = Modifier.fillMaxSize(),
                         alignment = alignment,
@@ -219,7 +197,43 @@ fun AsyncImage(
                         colorFilter = colorFilter
                     )
                 }
+                is AsyncImageState.Error -> {
+                    // If thumbnail is available, show it continuously! Do not show red error!
+                    if (latestThumbnail != null) {
+                        Image(
+                            bitmap = latestThumbnail!!,
+                            contentDescription = contentDescription,
+                            modifier = Modifier.fillMaxSize(),
+                            alignment = alignment,
+                            contentScale = contentScale,
+                            alpha = alpha,
+                            colorFilter = colorFilter
+                        )
+                    } else if (error != null) {
+                        Image(
+                            painter = error,
+                            contentDescription = contentDescription,
+                            modifier = Modifier.fillMaxSize(),
+                            alignment = alignment,
+                            contentScale = contentScale,
+                            alpha = alpha,
+                            colorFilter = colorFilter
+                        )
+                    }
+                }
             }
+        }
+
+        if (resolvedRequest.crossfade) {
+            androidx.compose.animation.Crossfade(
+                targetState = imageState,
+                animationSpec = androidx.compose.animation.core.tween(resolvedRequest.crossfadeDurationMillis),
+                label = "AsyncImageCrossfade"
+            ) { targetState ->
+                renderContent(targetState)
+            }
+        } else {
+            renderContent(imageState)
         }
     }
 }

@@ -55,6 +55,30 @@ afterEvaluate {
                 groupId = "com.github.gargpadmakar.KotlinImageLoader"
                 artifactId = "image-view"
                 version = "1.0.1"
+
+                pom {
+                    name.set("KotlinImageLoader View")
+                    description.set("Android View integration for KotlinImageLoader with ImageView.loadImage, ZoomableImageView, and PreDraw recycling protection.")
+                    url.set("https://github.com/gargpadmakar/KotlinImageLoader")
+                    licenses {
+                        license {
+                            name.set("The Apache License, Version 2.0")
+                            url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                        }
+                    }
+                    developers {
+                        developer {
+                            id.set("gargpadmakar")
+                            name.set("Padmakar Garg")
+                            email.set("gargpadmakar@users.noreply.github.com")
+                        }
+                    }
+                    scm {
+                        connection.set("scm:git:git://github.com/gargpadmakar/KotlinImageLoader.git")
+                        developerConnection.set("scm:git:ssh://github.com:gargpadmakar/KotlinImageLoader.git")
+                        url.set("https://github.com/gargpadmakar/KotlinImageLoader")
+                    }
+                }
             }
         }
     }

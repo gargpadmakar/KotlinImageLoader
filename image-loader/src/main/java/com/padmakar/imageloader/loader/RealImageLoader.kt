@@ -6,6 +6,10 @@ import com.padmakar.imageloader.core.ImageLoader
 import com.padmakar.imageloader.core.model.ImageRequest
 import com.padmakar.imageloader.core.model.ImageResult
 import com.padmakar.imageloader.data.DefaultImageRepository
+import com.padmakar.imageloader.data.boundary.ImageCacheBoundary
+import com.padmakar.imageloader.data.boundary.ImageDecoderBoundary
+import com.padmakar.imageloader.data.boundary.ImageFetcherBoundary
+import com.padmakar.imageloader.data.cache.DiskLruCache
 import com.padmakar.imageloader.domain.policy.DefaultImageRequestValidator
 import com.padmakar.imageloader.domain.repository.ImageRepository
 import com.padmakar.imageloader.domain.usecase.LoadImageUseCase
@@ -14,16 +18,16 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-import kotlinx.coroutines.flow.flowOn
 
 /**
  * Production implementation of the [ImageLoader] contract.
  *
  * Architecture and Threading:
- * - One Clear Loading Path: Request $\rightarrow$ [LoadImageUseCase] $\rightarrow$ [ImageRepository] $\rightarrow$ [HttpUrlConnectionFetcher] $\rightarrow$ [BitmapDecoder] $\rightarrow$ [ImageResult].
+ * - One Clear Loading Path: Request -> [LoadImageUseCase] -> [ImageRepository] -> [ImageFetcherBoundary] -> [ImageDecoderBoundary] -> [ImageResult].
  * - Network fetching and bitmap decoding are strictly executed on [ioDispatcher] (default [Dispatchers.IO]).
  * - Enqueue callbacks/events operate on [mainDispatcher] (default [Dispatchers.Main.immediate]).
  * - Stateless with respect to UI components: The loader never holds a shared ImageStore. Each UI target
@@ -49,7 +53,7 @@ class RealImageLoader(
         }
     }
 
-    override fun flow(request: ImageRequest): kotlinx.coroutines.flow.Flow<ImageResult> =
+    override fun flow(request: ImageRequest): Flow<ImageResult> =
         useCase.flow(request).flowOn(ioDispatcher)
 
     override fun enqueue(request: ImageRequest): Disposable {
@@ -71,14 +75,39 @@ class RealImageLoader(
         }
     }
 
+    override suspend fun prefetch(request: ImageRequest): Boolean = withContext(ioDispatcher) {
+        val result = execute(request)
+        result is ImageResult.Success
+    }
+
     class Builder(context: Context) {
         private val appContext = context.applicationContext
         private var repository: ImageRepository? = null
+        private var fetcher: ImageFetcherBoundary? = null
+        private var decoder: ImageDecoderBoundary? = null
+        private var memoryCache: ImageCacheBoundary? = null
+        private var diskCache: DiskLruCache? = null
         private var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
         private var mainDispatcher: CoroutineDispatcher = Dispatchers.Main.immediate
 
         fun repository(repository: ImageRepository) = apply {
             this.repository = repository
+        }
+
+        fun fetcher(fetcher: ImageFetcherBoundary) = apply {
+            this.fetcher = fetcher
+        }
+
+        fun decoder(decoder: ImageDecoderBoundary) = apply {
+            this.decoder = decoder
+        }
+
+        fun memoryCache(memoryCache: ImageCacheBoundary) = apply {
+            this.memoryCache = memoryCache
+        }
+
+        fun diskCache(diskCache: DiskLruCache) = apply {
+            this.diskCache = diskCache
         }
 
         fun ioDispatcher(dispatcher: CoroutineDispatcher) = apply {
@@ -90,7 +119,13 @@ class RealImageLoader(
         }
 
         fun build(): ImageLoader {
-            val repo = repository ?: DefaultImageRepository()
+            val resolvedDiskCache = diskCache ?: com.padmakar.imageloader.data.cache.DefaultDiskCacheInstance.get(appContext)
+            val repo = repository ?: DefaultImageRepository(
+                fetcherBoundary = fetcher ?: com.padmakar.imageloader.data.fetcher.HttpUrlConnectionFetcher(),
+                decoderBoundary = decoder ?: com.padmakar.imageloader.data.decoder.CompositeImageDecoder(),
+                memoryCache = memoryCache ?: com.padmakar.imageloader.data.cache.DefaultMemoryCacheInstance.instance,
+                diskCache = resolvedDiskCache
+            )
             val useCase = LoadImageUseCase(
                 repository = repo,
                 validator = DefaultImageRequestValidator()
