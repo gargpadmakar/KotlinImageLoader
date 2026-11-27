@@ -117,7 +117,8 @@ class BitmapDecoder(
                 "BitmapFactory failed to decode byte array of length ${bytes.size} with inSampleSize=$sampleSize"
             )
 
-        return bitmap
+        val orientation = ExifOrientationHandler.getExifOrientation(bytes)
+        return ExifOrientationHandler.applyOrientation(bitmap, orientation)
     }
 
     override suspend fun decodePartial(source: ByteArray, request: ImageRequest): Any? {

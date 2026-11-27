@@ -13,8 +13,8 @@ Repository: [https://github.com/gargpadmakar/KotlinImageLoader](https://github.c
 * **Min SDK**: API 26 (Android 8.0+)
 * **Dependencies**:
   ```kotlin
-  implementation("com.github.gargpadmakar.KotlinImageLoader:image-compose:1.0.1")
-  implementation("com.github.gargpadmakar.KotlinImageLoader:image-view:1.0.1")
+  implementation("com.github.gargpadmakar.KotlinImageLoader:image-compose:1.1.0")
+  implementation("com.github.gargpadmakar.KotlinImageLoader:image-view:1.1.0")
   ```
 
 ---

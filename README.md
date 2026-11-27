@@ -83,13 +83,13 @@ Add the modules you need to your application `build.gradle.kts`:
 ```kotlin
 dependencies {
     // For Jetpack Compose (includes AsyncImage & ZoomableAsyncImage)
-    implementation("com.github.gargpadmakar.KotlinImageLoader:image-compose:1.0.1")
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-compose:1.1.0")
 
     // For Android Views & XML (includes ImageView.loadImage & ZoomableImageView)
-    implementation("com.github.gargpadmakar.KotlinImageLoader:image-view:1.0.1")
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-view:1.1.0")
 
     // Core image loading engine & transformations
-    implementation("com.github.gargpadmakar.KotlinImageLoader:image-loader:1.0.1")
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-loader:1.1.0")
 }
 ```
 

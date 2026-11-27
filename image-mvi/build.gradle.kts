@@ -51,7 +51,31 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.github.gargpadmakar.KotlinImageLoader"
                 artifactId = "image-mvi"
-                version = "1.0.1"
+                version = "1.1.0"
+
+                pom {
+                    name.set("KotlinImageLoader MVI")
+                    description.set("Unidirectional Model-View-Intent state management contracts and store for KotlinImageLoader.")
+                    url.set("https://github.com/gargpadmakar/KotlinImageLoader")
+                    licenses {
+                        license {
+                            name.set("The Apache License, Version 2.0")
+                            url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                        }
+                    }
+                    developers {
+                        developer {
+                            id.set("gargpadmakar")
+                            name.set("Padmakar Garg")
+                            email.set("gargpadmakar@users.noreply.github.com")
+                        }
+                    }
+                    scm {
+                        connection.set("scm:git:git://github.com/gargpadmakar/KotlinImageLoader.git")
+                        developerConnection.set("scm:git:ssh://github.com:gargpadmakar/KotlinImageLoader.git")
+                        url.set("https://github.com/gargpadmakar/KotlinImageLoader")
+                    }
+                }
             }
         }
     }

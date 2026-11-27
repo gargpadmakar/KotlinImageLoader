@@ -50,7 +50,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.github.gargpadmakar.KotlinImageLoader"
                 artifactId = "image-domain"
-                version = "1.0.1"
+                version = "1.1.0"
 
                 pom {
                     name.set("KotlinImageLoader Domain")
