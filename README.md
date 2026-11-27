@@ -104,14 +104,14 @@ Add the required module dependencies to your application's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    // For Jetpack Compose support
-    implementation("com.github.gargpadmakar.KotlinImageLoader:image-compose:1.0.1")
+    // For Jetpack Compose support (includes AsyncImage & ZoomableAsyncImage)
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-compose:1.0.4")
 
-    // For traditional Android View support
-    implementation("com.github.gargpadmakar.KotlinImageLoader:image-view:1.0.1")
+    // For traditional Android View support (includes ImageView.loadImage & ZoomableImageView)
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-view:1.0.4")
 
     // Core library engine
-    implementation("com.github.gargpadmakar.KotlinImageLoader:image-loader:1.0.1")
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-loader:1.0.4")
 }
 ```
 
@@ -119,7 +119,75 @@ dependencies {
 
 ## Usage
 
-### 1. Jetpack Compose Integration
+### 1. HTTP Headers & Authentication
+
+You can pass custom HTTP request headers (such as `Authorization` bearer tokens, custom user-agents, API keys) directly using the `ImageRequest.Builder`:
+
+```kotlin
+import com.padmakar.imageloader.core.model.ImageRequest
+
+val request = ImageRequest.Builder("https://api.example.com/user/avatar.png")
+    .addHeader("Authorization", "Bearer YOUR_ACCESS_TOKEN")
+    .addHeader("User-Agent", "KotlinImageLoader/1.0")
+    .addHeader("X-Custom-Client", "AndroidApp")
+    .build()
+
+// In Compose:
+AsyncImage(model = request, contentDescription = "Profile Picture")
+
+// In Android View:
+imageView.loadImage(request)
+```
+
+---
+
+### 2. Zoomable Image Components (Pinch-to-Zoom & Panning)
+
+KotlinImageLoader provides built-in pinch-to-zoom and double-tap zoom components for both Jetpack Compose and traditional Views without requiring third-party libraries.
+
+#### Jetpack Compose: `ZoomableAsyncImage`
+Supports pinch-to-zoom, two-finger panning, and double-tap to zoom/reset:
+
+```kotlin
+import com.padmakar.imageloader.compose.ZoomableAsyncImage
+
+@Composable
+fun FullscreenPhoto(imageUrl: String) {
+    ZoomableAsyncImage(
+        model = imageUrl,
+        contentDescription = "Zoomable Photo",
+        modifier = Modifier.fillMaxSize(),
+        minScale = 1.0f,
+        maxScale = 5.0f
+    )
+}
+```
+
+#### Android View: `ZoomableImageView`
+Use in XML layouts or programmatically:
+
+```xml
+<com.padmakar.imageloader.view.ZoomableImageView
+    android:id="@+id/zoomableImageView"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
+```
+
+```kotlin
+val zoomableImageView = findViewById<ZoomableImageView>(R.id.zoomableImageView)
+zoomableImageView.loadImage("https://example.com/highres.jpg")
+```
+
+---
+
+### 3. Progressive Streaming Decoding & Offline Fallback
+
+* **Progressive Preview**: Large images decode incrementally in real time during streaming download (low-res preview immediately rendered without waiting for full download).
+* **Offline Thumbnail Fallback**: If an image was partially downloaded and network connectivity drops, the cached preview/thumbnail remains visible rather than falling back to a blank error screen.
+
+---
+
+### 4. Jetpack Compose Integration
 
 Use `AsyncImage` directly in your composable hierarchy:
 
