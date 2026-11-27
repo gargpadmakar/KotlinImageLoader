@@ -37,7 +37,18 @@ class ViewDemoActivity : ComponentActivity() {
         setupSingleDemo()
         setupDownsampleDemo()
         setupRapidDemo()
+        setupZoomDemo()
         setupRecyclerView()
+    }
+
+    private fun setupZoomDemo() {
+        val zoomView = findViewById<com.padmakar.imageloader.view.ZoomableImageView>(R.id.zoomableImageViewDemo)
+        zoomView?.loadImage(
+            ImageRequest.Builder(TestImages.LARGE_IMAGE_URL)
+                .placeholder(R.drawable.ic_placeholder)
+                .error(R.drawable.ic_error)
+                .build()
+        )
     }
 
     private fun setupToolbar() {

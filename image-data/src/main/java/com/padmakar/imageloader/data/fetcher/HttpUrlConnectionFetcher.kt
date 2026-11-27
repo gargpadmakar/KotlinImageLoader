@@ -86,6 +86,11 @@ class HttpUrlConnectionFetcher(
                     requestMethod = "GET"
                     doInput = true
 
+                    // Set standard User-Agent if not provided
+                    if (!request.headers.containsKey("User-Agent")) {
+                        setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) KotlinImageLoader/1.0")
+                    }
+
                     // Apply custom request headers
                     request.headers.forEach { (key, value) ->
                         setRequestProperty(key, value)
@@ -208,6 +213,11 @@ class HttpUrlConnectionFetcher(
                     readTimeout = readTimeoutMs
                     requestMethod = "GET"
                     doInput = true
+
+                    if (!request.headers.containsKey("User-Agent")) {
+                        setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) KotlinImageLoader/1.0")
+                    }
+
                     request.headers.forEach { (k, v) -> setRequestProperty(k, v) }
                 }
 

@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.padmakar.imageloader.R
 import com.padmakar.imageloader.compose.AsyncImage
 import com.padmakar.imageloader.compose.AsyncImageState
+import com.padmakar.imageloader.compose.ZoomableAsyncImage
 import com.padmakar.imageloader.core.model.ImageResult
 import com.padmakar.imageloader.data.TestImages
 
@@ -58,7 +59,7 @@ fun ComposeDemoScreen(
     BackHandler(onBack = onBack)
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("Features Demo", "50+ Item List")
+    val tabs = listOf("Features Demo", "Pinch-to-Zoom", "50+ Item List")
 
     Scaffold(
         topBar = {
@@ -95,8 +96,45 @@ fun ComposeDemoScreen(
 
             when (selectedTab) {
                 0 -> ComposeFeaturesContent()
-                1 -> ComposeListContent()
+                1 -> ComposeZoomContent()
+                2 -> ComposeListContent()
             }
+        }
+    }
+}
+
+@Composable
+private fun ComposeZoomContent() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Pinch-to-Zoom & Double-Tap Demo",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Text(
+            text = "Use 2 fingers to pinch/zoom or double-tap anywhere on the image.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+        ) {
+            ZoomableAsyncImage(
+                model = TestImages.LARGE_IMAGE_URL,
+                contentDescription = "Zoomable High-Res Demo",
+                placeholder = painterResource(R.drawable.ic_placeholder),
+                error = painterResource(R.drawable.ic_error),
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

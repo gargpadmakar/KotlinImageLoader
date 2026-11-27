@@ -186,11 +186,40 @@
                 android:background="#DDDDDD"
                 android:layout_marginVertical="16.dp" />
 
-            <!-- Section 4: 50+ Item RecyclerView List -->
+            <!-- Section 4: Pinch-to-Zoom (ZoomableImageView) -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="4. Scrolling List (50+ Items RecyclerView)"
+                android:text="4. Pinch-to-Zoom (ZoomableImageView)"
+                android:textStyle="bold"
+                android:textSize="16sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pinch with 2 fingers to zoom/pan or double-tap."
+                android:textSize="12sp"
+                android:textColor="#757575" />
+
+            <com.padmakar.imageloader.view.ZoomableImageView
+                android:id="@+id/zoomableImageViewDemo"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:layout_marginTop="8dp"
+                android:background="#EEEEEE"
+                android:contentDescription="Zoomable ImageView Demo" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#DDDDDD"
+                android:layout_marginVertical="16.dp" />
+
+            <!-- Section 5: 50+ Item RecyclerView List -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="5. Scrolling List (50+ Items RecyclerView)"
                 android:textStyle="bold"
                 android:textSize="16sp" />
 
