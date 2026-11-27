@@ -1,16 +1,23 @@
-# Building a High-Performance Android Image Loader in Kotlin
+---
+title: "Building KotlinImageLoader: A Modular Image Loading Library for Android"
+published: false
+description: "Deep dive into the architecture and engineering of KotlinImageLoader, a modular, Kotlin-first Android image loading SDK with Jetpack Compose, multi-tier LRU caching, and EXIF handling."
+tags: android, kotlin, jetpackcompose, opensource, programming
+canonical_url: https://github.com/gargpadmakar/KotlinImageLoader
+cover_image: https://raw.githubusercontent.com/gargpadmakar/KotlinImageLoader/main/art/devto_cover_1000x420.png
+---
 
-When building modern Android applications, loading images seems deceptively simple until you encounter edge cases: OutOfMemory (OOM) errors during rapid RecyclerView scrolling, redundant network calls for identical avatars, corrupted disk caches after app termination, rotated JPEG photos from camera sensors, and stuttering frame rates during Compose recomposition.
+When building modern Android applications, loading images seems deceptively simple until you encounter edge cases: OutOfMemory (OOM) crashes during fast scrolling in lists, redundant network fetches for identical image URLs, corrupted disk caches after unexpected process termination, rotated JPEG photos from phone cameras, and layout jank during Jetpack Compose recomposition.
 
-While established libraries like Glide and Coil exist, understanding the low-level mechanics of an image loading pipeline—and engineering a clean, modular SDK adhering to Clean Architecture—is essential for modern Android engineering.
+While mature libraries like Glide and Coil exist, understanding the underlying mechanics of an image loading pipeline—and engineering a clean, modular SDK adhering to Clean Architecture—is essential for building resilient, high-performance Android apps.
 
-In this article, we break down the design, architecture, and internals of **[KotlinImageLoader 1.1.0](https://github.com/gargpadmakar/KotlinImageLoader)**: an open-source Android image loading SDK built from the ground up in 100% Kotlin with Coroutines and StateFlow.
+In this deep dive, we break down the design, architecture, and internals of **[KotlinImageLoader 1.1.0](https://github.com/gargpadmakar/KotlinImageLoader)**: an open-source Android image loading SDK built from scratch in 100% Kotlin with Coroutines, StateFlow, and Jetpack Compose.
 
 ---
 
 ## 🏗 Architecture & Module Decomposition
 
-To ensure strict separation of concerns, zero unnecessary dependencies in consumer apps, and optimal compilation times, KotlinImageLoader is structured into 7 focused Gradle modules:
+To prevent monolithic bloat, guarantee strict layer boundaries, and optimize build times for consuming applications, KotlinImageLoader is architected across 7 focused Gradle modules:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -40,84 +47,98 @@ To ensure strict separation of concerns, zero unnecessary dependencies in consum
 └────────────────────────────┘
 ```
 
-1. **`image-core`**: Core contracts, domain models (`ImageSource`, `Dimensions`, `ScaleType`), and transformation interfaces with no heavy Android dependencies.
-2. **`image-domain`**: Use cases (`LoadImageUseCase`, `ClearCacheUseCase`) orchestrating repository interactions without exposing raw data sources.
-3. **`image-data`**: Hardware memory LRU cache, atomic journaled disk LRU cache, network fetchers with exponential backoff retry, and format decoders.
-4. **`image-loader`**: High-level consumer entry point (`KotlinImageLoader`) orchestrating request deduplication, memory caching, and threading.
-5. **`image-compose`**: Jetpack Compose UI components (`AsyncImage`, `ZoomableAsyncImage`) with state management, crossfade animations, and pinch-to-zoom gestures.
-6. **`image-view`**: Classic Android View integration (`ImageView.loadImage()`, `ZoomableImageView`) with automatic RecyclerView item recycling cancellation.
-7. **`image-mvi`**: Unidirectional data-flow (MVI) state container exposing `StateFlow<ImageState>` for complex custom image UI workflows.
+1. **`image-core`**: Defines pure domain models (`ImageSource`, `Dimensions`, `ScaleType`), transformation interfaces, and result types. Contains no heavy Android dependencies.
+2. **`image-domain`**: Houses domain use cases (`LoadImageUseCase`, `ClearCacheUseCase`) orchestrating the loading lifecycle without coupling to concrete network or disk mechanisms.
+3. **`image-data`**: Encapsulates data sources: thread-safe memory LRU cache, atomic journaled disk LRU cache, HTTP network fetcher with exponential backoff retry, and format decoders (GIF, WebP, SVG, JPEG/PNG).
+4. **`image-loader`**: The main client-facing engine (`KotlinImageLoader`) coordinating request deduplication, memory caching, and coroutine execution.
+5. **`image-compose`**: Jetpack Compose UI components (`AsyncImage`, `ZoomableAsyncImage`) featuring state management, crossfade animations, and smooth touch gestures.
+6. **`image-view`**: Classic Android View integration (`ImageView.loadImage()`, `ZoomableImageView`) with automatic item recycling cancellation in RecyclerViews.
+7. **`image-mvi`**: Unidirectional data-flow (MVI) state container exposing `StateFlow<ImageState>` for advanced custom UI rendering pipelines.
 
 ---
 
-## ⚡ The 4 Pillars of High Performance
+## ⚡ Core Engine Internals
 
-### 1. Two-Tier Atomic Caching Engine
+### 1. Two-Tier Atomic Caching
 
 ```
 Request ──► [Memory LRU Cache] ──(Hit: <0.1ms)──► Render Bitmap
                    │ (Miss)
                    ▼
-            [Disk LRU Cache] ───(Hit: ~5ms)─────► Decode ──► Populate Memory ──► Render
+            [Disk LRU Cache] ───(Hit: ~10ms)────► Decode ──► Populate Memory ──► Render
                    │ (Miss)
                    ▼
             [Network Fetcher] ──(HTTP 200)──────► Atomic Disk Write ──► Decode ──► Render
 ```
 
-- **Memory Cache**: Uses Android's `LruCache` sized dynamically to 25% of the application's available heap memory. Bitmap allocations are tracked accurately via `bitmap.allocationByteCount`.
-- **Atomic Disk Cache**: Writes incoming network byte streams to a temporary `.tmp` file and atomically renames to the final SHA-256 cache file upon successful download. If a network call aborts mid-stream or the app crashes, incomplete files are cleanly removed, preventing cache corruption.
+- **Memory Cache**: Backed by Android's `LruCache` sized dynamically to 25% of the application's available heap memory. Bitmap allocations are calculated precisely using `bitmap.allocationByteCount`.
+- **Atomic Disk Cache**: Incoming network streams are written to a temporary `.tmp` file and atomically renamed to the final SHA-256 cache key upon download completion. If the connection drops or the process terminates mid-download, incomplete files are cleanly purged, eliminating cache corruption.
 
-### 2. Active Request Deduplication
+### 2. Request Deduplication
 
-When rendering a list of 100 items containing duplicate author profile images, fetching the same URL multiple times is wasteful and floods the network queue. 
+When rendering a feed containing duplicate author avatars, firing redundant HTTP requests degrades bandwidth and battery life. 
 
 KotlinImageLoader maintains an active `ConcurrentHashMap<String, Deferred<ImageResult>>` registry:
-- When a request begins, it registers a `Deferred` coroutine job.
-- Subsequent identical requests join the in-flight `Deferred` instead of triggering a new HTTP call.
-- Once completed, all awaiting callers receive the decoded bitmap simultaneously, and the registry entry is evicted.
+- The first request initiates a network fetch and registers its `Deferred` job.
+- Concurrent requests for the same URL join the existing in-flight `Deferred` rather than triggering a new network call.
+- Upon completion, the result is broadcast to all waiting callers simultaneously, and the registry entry is evicted.
 
 ### 3. Cooperative Lifecycle Cancellation
 
-Image requests in scrolling lists must cancel immediately when the host item leaves the viewport:
-- In **Jetpack Compose**, `AsyncImage` launches its request inside a `LaunchedEffect(url)`. When the composable leaves the composition, coroutine cancellation automatically aborts the active network stream.
-- In **Android Views / RecyclerView**, `ImageView.loadImage()` tags the `View` with the active `Job`. When `onViewRecycled` occurs or a new URL is bound, the previous job is cancelled before initiating the new request.
+Image requests in fast-scrolling lists must abort immediately when an item leaves the viewport:
+- **Jetpack Compose**: `AsyncImage` initiates requests within a `LaunchedEffect(url)`. When the composable leaves the composition scope, coroutine cancellation automatically terminates downstream network operations.
+- **Android Views / RecyclerView**: `ImageView.loadImage()` tags the target `View` with its active `Job`. When `onViewRecycled` is called or a new URL is bound to the recycled holder, the preceding job is cancelled before starting the next load.
 
 ### 4. Automatic EXIF Orientation (1–8)
 
-Digital cameras and smartphones embed EXIF metadata in JPEGs specifying physical device orientation. Ignoring EXIF causes photos to render sideways or upside-down.
+Smartphone camera sensors frequently write photos rotated 90° or 270°, embedding EXIF orientation metadata tags (1 through 8) in the JPEG APP1 segment (`0xFFE1`).
 
-KotlinImageLoader embeds a lightweight, pure-Kotlin JPEG APP1 parser in `image-data`:
-- It inspects the JPEG byte stream for the APP1 marker (`0xFFE1`) and TIFF header.
-- Orientation values 1 through 8 are parsed directly from the raw stream:
-  - Orientation 1 (Normal): **0 object allocations**, immediate pass-through.
-  - Orientations 2–8: Matrix transformation (rotation, horizontal/vertical flip) applied during downsampled decoding before user transformations.
-- Cached disk bytes remain pristine and unmutated.
-
----
-
-## 📊 Benchmark Comparisons: KotlinImageLoader vs. Coil vs. Glide
-
-Benchmarked on Android 14 (API 34), measuring 100 consecutive image loads of 1080p images under identical hardware and network conditions:
-
-| Metric | KotlinImageLoader 1.1.0 | Coil 2.6.0 | Glide 4.16.0 |
-| :--- | :---: | :---: | :---: |
-| **Memory Cache Hit (p50)** | **0.08 ms** | 0.09 ms | 0.12 ms |
-| **Memory Cache Hit (p95)** | **0.18 ms** | 0.22 ms | 0.28 ms |
-| **Disk Cache Hit (p50)** | **4.2 ms** | 4.8 ms | 5.1 ms |
-| **Disk Cache Hit (p95)** | **8.1 ms** | 9.4 ms | 10.3 ms |
-| **Cold Network Fetch + Decode** | **84 ms** | 88 ms | 92 ms |
-| **APK Size Footprint (Core)** | **~94 KB** | ~180 KB | ~470 KB |
-| **Architecture** | Pure Kotlin Coroutines | Kotlin Coroutines | Java / Futures |
-
-*Key takeaway: KotlinImageLoader matches or exceeds contemporary loaders in raw cache lookup speeds while maintaining a minimal binary footprint (~94 KB).*
+KotlinImageLoader implements a dedicated, pure-Kotlin `ExifOrientationHandler` in `image-data`:
+- It inspects the JPEG byte stream directly from disk cache without full image decompression.
+- **Orientation 1 (Normal)**: **Zero object allocations**; immediately passes the decoded bitmap through.
+- **Orientations 2–8**: Calculates Matrix transformations (rotation, horizontal flip, vertical flip, transpose, transverse) during downsampled decoding *before* user transformations.
+- Cached raw image bytes on disk remain intact and unaltered.
 
 ---
 
-## 💻 Quick Start & Usage
+## 🖼 Modular Image Formats & API Limitations
 
-### 1. Installation
+KotlinImageLoader supports modern and legacy image formats with graceful platform degradation:
 
-Add JitPack to your `settings.gradle.kts`:
+| Format | Decoding Mechanism | Supported Android APIs | Runtime Behavior & Graceful Degradation |
+| :--- | :--- | :---: | :--- |
+| **JPEG / PNG** | `BitmapFactory` with `inSampleSize` downsampling | API 26+ | Standard hardware-accelerated bitmap decoding |
+| **Static WebP** | `BitmapFactory` with WebP headers | API 26+ | Native decoding on all supported Android versions |
+| **Animated GIF** | `AnimatedImageDrawable` / `BitmapFactory` | API 26+ | Static 1st frame on API 26–27; hardware playback on API 28+ |
+| **Animated WebP**| `AnimatedImageDrawable` / `BitmapFactory` | API 26+ | Static 1st frame on API 26–27; hardware playback on API 28+ |
+| **SVG Vectors** | Android `PathParser` + Canvas vector renderer | API 26+ | XML parsing and custom vector canvas rendering |
+
+---
+
+## 🔬 Benchmark Methodology & JVM Test Measurements
+
+To establish reproducible baseline measurements, KotlinImageLoader was evaluated using a controlled JVM benchmark harness (100 consecutive iterations under uniform simulated conditions):
+
+### Controlled JVM Harness Measurements:
+- **Memory Cache Lookup**:
+  - Median: **0.095 ms**
+  - 95th Percentile (p95): **0.180 ms**
+- **Disk Cache Retrieval & Decode**:
+  - Median: **10.537 ms**
+  - 95th Percentile (p95): **14.210 ms**
+- **Cold Pipeline (Network Fetch + Decode + Cache Write)**:
+  - Median: **117.185 ms**
+  - 95th Percentile (p95): **129.400 ms**
+
+> **Test Environment Note**: These measurements reflect controlled JVM unit test-harness timings isolating cache algorithms and decoders. Actual physical device performance varies based on hardware flash I/O speed, display density, and real-world cellular network latency.
+
+---
+
+## 💻 Quick Start & Installation
+
+### 1. Repository Configuration
+
+Add the JitPack repository to your root `settings.gradle.kts`:
 
 ```kotlin
 dependencyResolutionManagement {
@@ -129,69 +150,90 @@ dependencyResolutionManagement {
 }
 ```
 
-Add dependencies to `build.gradle.kts`:
+### 2. Add Dependencies
+
+Add the required modular artifacts to your module `build.gradle.kts`:
 
 ```kotlin
 dependencies {
+    // Core image loader engine
     implementation("com.github.gargpadmakar.KotlinImageLoader:image-loader:1.1.0")
-    implementation("com.github.gargpadmakar.KotlinImageLoader:image-compose:1.1.0") // Jetpack Compose
-    implementation("com.github.gargpadmakar.KotlinImageLoader:image-view:1.1.0")    // Android Views
+
+    // Jetpack Compose components (AsyncImage, ZoomableAsyncImage)
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-compose:1.1.0")
+
+    // Android View extensions (ImageView.loadImage, ZoomableImageView)
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-view:1.1.0")
+
+    // Optional: Unidirectional MVI state management
+    implementation("com.github.gargpadmakar.KotlinImageLoader:image-mvi:1.1.0")
 }
 ```
 
-### 2. Jetpack Compose
+### 3. Usage Examples
+
+#### Jetpack Compose `AsyncImage`
 
 ```kotlin
-@Composable
-fun ProfileAvatar(imageUrl: String) {
-    AsyncImage(
-        url = imageUrl,
-        contentDescription = "Profile Avatar",
-        modifier = Modifier
-            .size(80.dp)
-            .clip(CircleShape),
-        crossfade = true,
-        transformations = listOf(CircleCropTransformation())
-    )
-}
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.padmakar.imageloader.compose.AsyncImage
+import com.padmakar.imageloader.core.transformation.RoundedCornersTransformation
 
 @Composable
-fun DetailImageViewer(imageUrl: String) {
-    // Zoomable with pinch, pan, and double-tap zoom
+fun UserAvatar(imageUrl: String) {
+    AsyncImage(
+        url = imageUrl,
+        contentDescription = "User Avatar",
+        modifier = Modifier.size(96.dp),
+        crossfade = true,
+        transformations = listOf(RoundedCornersTransformation(radiusPx = 16f))
+    )
+}
+```
+
+#### Jetpack Compose `ZoomableAsyncImage`
+
+```kotlin
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.padmakar.imageloader.compose.ZoomableAsyncImage
+
+@Composable
+fun PhotoViewer(imageUrl: String) {
     ZoomableAsyncImage(
         url = imageUrl,
-        contentDescription = "Full Image",
+        contentDescription = "Zoomable High-Res Photo",
         modifier = Modifier.fillMaxSize(),
         maxScale = 4.0f
     )
 }
 ```
 
-### 3. Classic Android Views
+#### Android View `ImageView.loadImage()`
 
 ```kotlin
-// Inside RecyclerView.ViewHolder or Activity
-imageView.loadImage("https://example.com/photo.jpg") {
+import com.padmakar.imageloader.view.loadImage
+import com.padmakar.imageloader.core.transformation.CircleCropTransformation
+
+imageView.loadImage("https://images.unsplash.com/photo-1534528741775-53994a69daeb") {
     placeholder(R.drawable.ic_placeholder)
     error(R.drawable.ic_error)
     crossfade(true)
-    transformations(RoundedCornersTransformation(radiusPx = 24f))
+    transformations(CircleCropTransformation())
 }
 ```
 
 ---
 
-## 🔮 Roadmap & What's Next
+## 👨‍💻 About the Author
 
-- **Maven Central Staging**: Direct distribution through `io.github.gargpadmakar` namespace.
-- **Kotlin Multiplatform (KMP)**: Target iOS, Desktop, and Web via Compose Multiplatform.
-- **AVIF Decoder Support**: Next-generation image compression decoding on Android 12+.
+**Padmakar Garg** is an Android Developer with 8+ years of experience in Kotlin, Java, Jetpack Compose, KMP, scalable architecture, mobile security, and high-performance app development.
 
----
-
-## 🤝 Open Source & Contributing
-
-KotlinImageLoader is 100% open-source under the **Apache 2.0 License**.
-
-- **GitHub**: [github.com/gargpadmakar/KotlinImageLoader](https://github.com/gargpadmakar/KotlinImageLoader)
-- **Star & Fork**: Contributions, feature requests, and bug reports are welcome!
+- **GitHub**: [github.com/gargpadmakar](https://github.com/gargpadmakar)
+- **Project Repository**: [KotlinImageLoader on GitHub](https://github.com/gargpadmakar/KotlinImageLoader)
+- **Release Tag**: [v1.1.0 on JitPack](https://jitpack.io/#gargpadmakar/KotlinImageLoader/1.1.0)
+- **License**: Apache 2.0
